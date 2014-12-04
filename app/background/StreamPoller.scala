@@ -51,18 +51,20 @@ object StreamPoller {
       refuse(Answer.NoMoreCandies)
     }
     else {
+      val queuedCoins = userCoins.queuedCoins
       req.op match {
         case Operation.InsertCoin => {
           if (state.stashedCoins == Conf.maxStashedCoins)
             refuse(Answer.StashedCoinsContainerFull)
-          else if (userCoins.queuedCoins == Conf.maxQueuedCoins)
+          else if (queuedCoins == Conf.maxQueuedCoins)
             refuse(Answer.CoinQueueFull)
           else
-            (Answer.Success, new State(state.stashedCoins, state.availableCandies, Some(new UserCoins(id, userCoins.queuedCoins + 1))))
+            (Answer.Success, new State(state.stashedCoins, state.availableCandies, Some(new UserCoins(id, queuedCoins + 1))))
         }
         case Operation.ExtractCandy => {
-          if (userCoins.queuedCoins > 0) {
-            (Answer.Success, new State(state.stashedCoins + 1, state.availableCandies - 1, Some(new UserCoins(id, userCoins.queuedCoins - 1))))
+          if (queuedCoins > 0) {
+            val newUserCoinsOption = if(queuedCoins==1) None else Some(new UserCoins(id, queuedCoins - 1))
+            (Answer.Success, new State(state.stashedCoins + 1, state.availableCandies - 1, newUserCoinsOption))
           } else {
             refuse(Answer.NoCoinsInTheQueue)
           }

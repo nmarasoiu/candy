@@ -6,7 +6,7 @@ import org.joda.time.Seconds
  * Created by dnmaras on 12/4/14.
  */
 object Conf {
-  val maxInactiveDuration = new Seconds(15)
+  val maxInactiveDuration = Seconds.seconds(15)
 
   val initialState: State = new State(10, 10, None)
 

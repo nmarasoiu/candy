@@ -1,8 +1,8 @@
-package background
+package business
 
 import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue, TimeUnit}
 
-import business._
+import models.CandyMachineRequest
 import org.joda.time.DateTime
 
 import scala.collection.immutable
@@ -42,7 +42,7 @@ object StreamPoller {
    * @return
    */
   def nextState(state: State, req: CandyMachineRequest): (Answer.Value, State) = {
-    val id = req.id
+    val id = req.userId
     def isTooOld(userSession: UserCoins): Boolean = {
       userSession.lastActivity.compareTo(new DateTime().minus(Conf.maxInactiveDuration)) < 0
     }
@@ -58,8 +58,9 @@ object StreamPoller {
     }
     else {
       val queuedCoins = userCoins.queuedCoins
-      req.op match {
-        case Operation.InsertCoin => {
+      //in real life I would make operation a enum (via case Object or Enumeration)
+      req.operation match {
+        case "coin" => {
           if (state.stashedCoins == Conf.maxStashedCoins)
             refuse(Answer.StashedCoinsContainerFull)
           else if (queuedCoins == Conf.maxQueuedCoins)
@@ -67,7 +68,7 @@ object StreamPoller {
           else
             (Answer.Success, new State(state.stashedCoins, state.availableCandies, Some(new UserCoins(id, queuedCoins + 1, new DateTime()))))
         }
-        case Operation.ExtractCandy => {
+        case "candy" => {
           if (queuedCoins > 0) {
             val newUserCoinsOption = if (queuedCoins == 1) None else Some(new UserCoins(id, queuedCoins - 1, new DateTime()))
             (Answer.Success, new State(state.stashedCoins + 1, state.availableCandies - 1, newUserCoinsOption))

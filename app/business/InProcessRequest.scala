@@ -1,5 +1,7 @@
 package business
 
+import models.CandyMachineRequest
+
 import scala.concurrent.Promise
 
 /**

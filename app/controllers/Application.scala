@@ -1,8 +1,6 @@
 package controllers
 
 import java.util.concurrent.BlockingQueue
-
-import background.StreamPoller
 import business._
 import models._
 import play.api.data.Form
@@ -13,18 +11,15 @@ import play.api.mvc._
 object Application extends Controller {
   private val ticketing: BlockingQueue[InProcessRequest] = StreamPoller.createBlockingQueueAndStartPolling
 
-  val userIdForm: Form[UserId] = Form {
+  val userIdForm: Form[CandyMachineRequest] = Form {
     mapping(
       "userId" -> nonEmptyText,
       "operation" -> nonEmptyText
-    )(UserId.apply)(UserId.unapply)
+    )(CandyMachineRequest.apply)(CandyMachineRequest.unapply)
   }
 
   def exec = Action.async { implicit request =>
-    val input = userIdForm.bindFromRequest.get
-    val id = Integer.parseInt(input.userId)
-    val operation = if ("candy".eq(input.operation)) Operation.ExtractCandy else Operation.InsertCoin
-    val inFlightRequest = InProcessRequest(new CandyMachineRequest(id, operation))
+    val inFlightRequest = InProcessRequest(userIdForm.bindFromRequest.get)
     ticketing.add(inFlightRequest)
     inFlightRequest.answerPromise.future
       .map {

@@ -1,4 +1,4 @@
-package business
+package business.dto
 
 /**
  * Created by dnmaras on 12/4/14.

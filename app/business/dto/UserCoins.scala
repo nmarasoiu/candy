@@ -1,4 +1,4 @@
-package business
+package business.dto
 
 import org.joda.time.DateTime
 

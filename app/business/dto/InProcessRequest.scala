@@ -1,4 +1,4 @@
-package business
+package business.dto
 
 import models.CandyMachineRequest
 

@@ -1,5 +1,6 @@
 package business
 
+import business.dto.State
 import org.joda.time.Seconds
 
 /**

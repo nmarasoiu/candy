@@ -1,6 +1,5 @@
 package business
 
-import business.dto.State
 import org.joda.time.Seconds
 
 /**
@@ -8,9 +7,5 @@ import org.joda.time.Seconds
  */
 object Conf {
   val maxInactiveDuration = Seconds.seconds(15)
-
-  val initialState: State = new State(10, 10, None)
-
-  val maxQueuedCoins = 100
-  val maxStashedCoins = 100
+  val initialCandies = 100
 }

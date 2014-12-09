@@ -100,4 +100,8 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
   def replace(newReceive: Receive): Unit = {
     context.become(newReceive, discardOld = true)
   }
+  override def unhandled(message: Any): Unit = {
+    Logger.warn("Could not handle "+message)
+    super.unhandled(message)
+  }
 }

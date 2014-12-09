@@ -17,11 +17,11 @@ import play.api.mvc._;
 
 object Application extends Controller {
   val candyMachine = Akka.system.actorOf(Props(classOf[CandyMachineActor], Conf.initialCandies), name = "candyMachine")
-  val userIdForm: Form[CandyMachineRequest] = Form {
+  val userIdForm: Form[CandyMachineRequestDuplicate] = Form {
     mapping(
       "userId" -> nonEmptyText,
       "operation" -> nonEmptyText
-    )(CandyMachineRequest.apply)(CandyMachineRequest.unapply)
+    )(CandyMachineRequestDuplicate.apply)(CandyMachineRequestDuplicate.unapply)
   }
 
   def exec = Action.async { implicit request =>

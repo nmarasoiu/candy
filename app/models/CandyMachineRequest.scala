@@ -1,9 +1,5 @@
 package models
 
-import play.api.libs.json._
+import business.dto.Operation
 
-case class CandyMachineRequest(userId: String, operation:String)
-
-object CandyMachineRequest {
-  implicit val personFormat = Json.format[CandyMachineRequest]
-}
+case class CandyMachineRequest(userId: String, operation: Operation.Value)

@@ -26,19 +26,19 @@ object Application extends Controller {
     )(CandyMachineRequestDuplicate.apply)(CandyMachineRequestDuplicate.unapply)
   }
 
-  def decode(s: String): Option[Operation.Value] = s match {
-    case "candy" => Option(Operation.Candy)
-    case "coin" => Option(Operation.Coin)
-    case "refill" => Option(Operation.Refill)
-    case _ => None
-  }
-
   def exec = Action.async { implicit request =>
     val input = userIdForm.bindFromRequest.get
     decode(input.operation)
       .map(op => new CandyMachineRequest(input.userId, op))
       .map(req => execute(req))
       .getOrElse(Future(BadRequest("Unrecognized operation")))
+  }
+
+  def decode(s: String): Option[Operation.Value] = s match {
+    case "candy" => Option(Operation.Candy)
+    case "coin" => Option(Operation.Coin)
+    case "refill" => Option(Operation.Refill)
+    case _ => None
   }
 
   def execute(req: CandyMachineRequest): Future[Result] = {

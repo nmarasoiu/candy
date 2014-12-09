@@ -35,7 +35,7 @@ class ApplicationSpec extends Specification {
       status(get(23,"candy")) must beEqualTo(BAD_REQUEST)
       status(get(23,"candy")) must beEqualTo(BAD_REQUEST)
       status(get(23,"candy")) must beEqualTo(BAD_REQUEST)
-//      status(get(23,"x")) must beEqualTo(BAD_REQUEST)
+      status(get(23,"x")) must beEqualTo(BAD_REQUEST)
     }
 
   }

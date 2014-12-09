@@ -6,15 +6,14 @@ import akka.actor.Props
 import akka.pattern.Patterns.ask
 import akka.util.Timeout
 import business._
-import business.dto.Answer
+import business.dto.{Answer, Operation}
 import models._
 import play.api.Play.current
 import play.api.data.Form
 import play.api.data.Forms._
 import play.api.libs.concurrent.Akka
 import play.api.libs.concurrent.Execution.Implicits.defaultContext
-import play.api.mvc._;
-import business.dto.Operation
+import play.api.mvc._
 
 import scala.concurrent.Future
 
@@ -27,16 +26,19 @@ object Application extends Controller {
     )(CandyMachineRequestDuplicate.apply)(CandyMachineRequestDuplicate.unapply)
   }
 
-  def decode(s: String): Operation.Value = s match {
-    case "candy" => Operation.Candy
-    case "coin" => Operation.Coin
-    case "refill" => Operation.Refill
+  def decode(s: String): Option[Operation.Value] = s match {
+    case "candy" => Option(Operation.Candy)
+    case "coin" => Option(Operation.Coin)
+    case "refill" => Option(Operation.Refill)
+    case _ => None
   }
 
   def exec = Action.async { implicit request =>
-    val duplicate: CandyMachineRequestDuplicate = userIdForm.bindFromRequest.get
-    val req = new CandyMachineRequest(duplicate.userId, decode(duplicate.operation))
-    execute(req)
+    val input = userIdForm.bindFromRequest.get
+    decode(input.operation)
+      .map(op => new CandyMachineRequest(input.userId, op))
+      .map(req => execute(req))
+      .getOrElse(Future(BadRequest("Unrecognized operation")))
   }
 
   def execute(req: CandyMachineRequest): Future[Result] = {

@@ -1,16 +1,14 @@
 package business
 
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{Stash, Actor, ActorRef}
+import akka.actor.{Actor, Stash}
 import akka.event.Logging
 import business.dto.{Answer, Operation, UserCoin}
 import models.CandyMachineRequest
 import org.joda.time.DateTime
 import play.api.Logger
 
-import scala.collection.immutable.Queue
 import scala.concurrent.duration.FiniteDuration
 
 class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
@@ -35,7 +33,7 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
       Logger.debug("equilibrium:" + availableCandies + " received " + req + " from " + sender)
       requestedOperation match {
         case Operation.Coin =>
-          replace(withCoin(new UserCoin(currentUserId, expiryTime), availableCandies))
+          replace(withCoin(new UserCoin(currentUserId.get, expiryTime), availableCandies))
           scheduleExpiryCheck()
           sendOK()
         case Operation.Refill =>
@@ -52,12 +50,12 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
   private def scheduleExpiryCheck() {
     import context.dispatcher
     context.system.scheduler.scheduleOnce(maxInactiveFiniteDuration) {
-      self ! CandyMachineRequest(UUID.randomUUID().toString, Operation.ExpireCoin)
+      self ! CandyMachineRequest(Operation.ExpireCoin)
     }
   }
 
   private def withCoin(locker: UserCoin, availableCandies: Int): Actor.Receive = {
-    case req@CandyMachineRequest(currentUserId, requestedOperation) =>
+    case req@CandyMachineRequest(Some(currentUserId), requestedOperation) =>
       Logger.debug("withCoin:" + locker + "," + availableCandies)
       if (currentUserId == locker.userId) {
         requestedOperation match {
@@ -72,12 +70,15 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
           case Operation.Candy | Operation.Coin =>
             maybeExpireCoin(locker, availableCandies)
             stash()
-          case Operation.ExpireCoin =>
-            maybeExpireCoin(locker, availableCandies)
-          case Operation.Refill =>
-            replace(withCoin(locker, availableCandies + 1))
-            sendOK()
         }
+      }
+    case req@CandyMachineRequest(None, requestedOperation) =>
+      requestedOperation match {
+        case Operation.ExpireCoin =>
+          maybeExpireCoin(locker, availableCandies)
+        case Operation.Refill =>
+          replace(withCoin(locker, availableCandies + 1))
+          sendOK()
       }
   }
 
@@ -90,7 +91,7 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
   }
 
   private def restart(newAvailableCandies: Int): Actor.Receive = {
-    Logger.debug("restart:" + newAvailableCandies )
+    Logger.debug("restart:" + newAvailableCandies)
     unstashAll()
     start(newAvailableCandies)
   }

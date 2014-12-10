@@ -31,7 +31,10 @@ object Application extends Controller {
   def exec = Action.async { implicit request =>
     val input = userIdForm.bindFromRequest.get
     decode(input.operation)
-      .map(op => new CandyMachineRequest(input.userId, op))
+      .map({
+      case op@(Operation.Refill | Operation.ExpireCoin) => CandyMachineRequest(op)
+      case op => CandyMachineRequest(input.userId, op)
+    })
       .map(req => execute(req))
       .getOrElse(Future(BadRequest("Unrecognized operation")))
   }

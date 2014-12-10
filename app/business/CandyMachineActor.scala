@@ -16,7 +16,7 @@ import scala.concurrent.duration.FiniteDuration
 
 class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
   private val log = Logging(context.system, this)
-  private val maxInactiveDuration: Period = Conf.maxInactiveDuration
+  private val maxInactiveDuration = Conf.maxInactiveDuration
   private val maxInactiveFiniteDuration: FiniteDuration = FiniteDuration(maxInactiveDuration.getMillis, TimeUnit.MILLISECONDS)
 
   override def unhandled(message: Any) {

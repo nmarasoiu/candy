@@ -1,6 +1,7 @@
-import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.{Random, UUID}
 
+import business.Conf
 import org.junit.runner._
 import org.specs2.mutable._
 import org.specs2.runner._
@@ -16,7 +17,10 @@ import scala.concurrent.Future
  */
 @RunWith(classOf[JUnitRunner])
 class ApplicationSpec extends Specification {
+  val random: Random = new Random()
+
   def get(userId: String, operation: String) = {
+    Thread.sleep(Math.round((Conf.maxInactiveDuration.getMillis * 2 / 3) * random.nextDouble()))
     val Some(result) = route(FakeRequest(GET, "/exec?userId=" + userId + "&operation=" + operation))
     result
   }
@@ -28,14 +32,15 @@ class ApplicationSpec extends Specification {
     }
 
     "main testing" in new WithApplication() {
+      val B: Int = BAD_REQUEST
+      val O: Int = OK
       val parallelismFactor: Int = 20
       val cdl = new CountDownLatch(parallelismFactor)
       for (iteration <- 1 to parallelismFactor) {
-        val B: Int = BAD_REQUEST
-        val O: Int = OK
         Future {
           val user = UUID.randomUUID().toString
-          List(status(get(user, "candy")),
+          List(
+            status(get(user, "candy")),
             status(get(user, "coin")),
             status(get(user, "coin")),
             status(get(user, "candy")),
@@ -47,10 +52,11 @@ class ApplicationSpec extends Specification {
             status(get(user, "candy")),
             status(get(user, "candy")),
             status(get(user, "x")))
-        }.foreach( (result:List[Int]) => {
+        }
+          .foreach((result: List[Int]) => {
           result must beEqualTo(List(B, O, B, O, O, O, B, O, B, O, B, B))
           cdl.countDown()
-        } )
+        })
       }
       cdl.await()
     }

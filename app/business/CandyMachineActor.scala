@@ -3,20 +3,21 @@ package business
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{Actor, Stash}
-import akka.event.Logging
 import business.dto.{Answer, Operation, UserLock}
 import models.CandyMachineRequest
 import org.joda.time.DateTime
+import play.api.Logger
 
 import scala.concurrent.duration.FiniteDuration
 
 class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
-  private val log = Logging(context.system, this)
+  private val log = Logger
+  //Logging(context.system, this)
   private val maxInactiveDuration = Conf.maxInactiveDuration
   private val maxInactiveFiniteDuration: FiniteDuration = FiniteDuration(maxInactiveDuration.getMillis, TimeUnit.MILLISECONDS)
 
   override def unhandled(message: Any) {
-    log.warning("Could not handle " + message)
+    log.warn("Could not handle " + message)
     super.unhandled(message)
   }
 
@@ -55,7 +56,6 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
 
   private def withCoin(locker: UserLock, availableCandies: Int): Actor.Receive = {
     case req@CandyMachineRequest(Some(currentUserId), requestedOperation) =>
-      log.debug("withCoin:" + locker + "," + availableCandies)
       if (currentUserId == locker.userId) {
         requestedOperation match {
           case Operation.Candy =>

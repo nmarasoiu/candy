@@ -11,42 +11,53 @@ import org.joda.time.{DateTime, Period}
 import play.api.Logger
 
 import scala.collection.immutable.Queue
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.FiniteDuration
 
-class CandyMachineActor(initialAvailableCandies: Int,
-                        maxInactiveDuration: Period = Conf.maxInactiveDuration,
-                        maxInactiveFiniteDuration: FiniteDuration = FiniteDuration(maxInactiveDuration.getMillis, TimeUnit.MILLISECONDS)
-                         ) extends Actor {
-  val log = Logging(context.system, this)
+class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
+  private val log = Logging(context.system, this)
+  private val maxInactiveDuration: Period = Conf.maxInactiveDuration
+  private val maxInactiveFiniteDuration: FiniteDuration = FiniteDuration(maxInactiveDuration.getMillis, TimeUnit.MILLISECONDS)
+
+  override def unhandled(message: Any) {
+    Logger.warn("Could not handle " + message)
+    super.unhandled(message)
+  }
 
   def receive = start(Math.max(0, initialAvailableCandies))
 
-  def start(availableCandies: Int): Actor.Receive = {
+  private def start(availableCandies: Int): Actor.Receive = {
     Logger.debug("start:" + availableCandies)
     if (availableCandies == 0) noCandies() else equilibrium(availableCandies)
   }
 
-  def equilibrium(availableCandies: Int): Actor.Receive = {
+  private def equilibrium(availableCandies: Int): Actor.Receive = {
     case req@CandyMachineRequest(currentUserId, requestedOperation) =>
       Logger.debug("equilibrium:" + availableCandies + " received " + req + " from " + sender)
       requestedOperation match {
         case Operation.Coin =>
-          val waitUntil: DateTime = new DateTime().plus(maxInactiveDuration)
-          replace(withCoin(new UserCoin(currentUserId, waitUntil), availableCandies))
-          context.system.scheduler.scheduleOnce(maxInactiveFiniteDuration) {
-            self ! CandyMachineRequest(UUID.randomUUID().toString, Operation.ExpireCoin)
-          }
+          replace(withCoin(new UserCoin(currentUserId, expiryTime), availableCandies))
+          scheduleExpiryCheck()
           sendOK()
-        case Operation.Candy =>
-          send(Answer.NoCoinsInTheQueue)
         case Operation.Refill =>
           replace(equilibrium(1 + availableCandies))
           sendOK()
+        case Operation.Candy =>
+          send(Answer.NoCoinsInTheQueue)
         case Operation.ExpireCoin =>
       }
   }
 
-  def withCoin(locker: UserCoin, availableCandies: Int, reqQueue: Queue[(ActorRef, CandyMachineRequest)] = Queue()): Actor.Receive = {
+  private def expiryTime = new DateTime().plus(maxInactiveDuration)
+
+  private def scheduleExpiryCheck() {
+//    import context.dispatcher
+    context.system.scheduler.scheduleOnce(maxInactiveFiniteDuration) {
+      self ! CandyMachineRequest(UUID.randomUUID().toString, Operation.ExpireCoin)
+    }
+  }
+
+  private def withCoin(locker: UserCoin, availableCandies: Int, reqQueue: Queue[(ActorRef, CandyMachineRequest)] = Queue()): Actor.Receive = {
     case req@CandyMachineRequest(currentUserId, requestedOperation) =>
       Logger.debug("withCoin:" + locker + "," + availableCandies + "," + reqQueue)
       if (currentUserId == locker.userId) {
@@ -77,7 +88,7 @@ class CandyMachineActor(initialAvailableCandies: Int,
       }
   }
 
-  def restart(newAvailableCandies: Int, reqQueue: Queue[(ActorRef, CandyMachineRequest)]): Actor.Receive = {
+  private def restart(newAvailableCandies: Int, reqQueue: Queue[(ActorRef, CandyMachineRequest)]): Actor.Receive = {
     Logger.debug("restart:" + newAvailableCandies + "," + reqQueue)
     if (reqQueue.isEmpty) {
       start(newAvailableCandies)
@@ -91,7 +102,7 @@ class CandyMachineActor(initialAvailableCandies: Int,
     }
   }
 
-  def noCandies(): Actor.Receive = {
+  private def noCandies(): Actor.Receive = {
     case CandyMachineRequest(_, Operation.Refill) =>
       replace(start(1))
     case CandyMachineRequest(_, Operation.Coin | Operation.Candy) =>
@@ -101,26 +112,21 @@ class CandyMachineActor(initialAvailableCandies: Int,
 
   //in the current solution we chain proxies whenever there are waiting reqs to ensure that they are going first and then the inbox tail
   //clearly needs rewrite, to have just one proxy step, not a proxy chain which is does not have a bound in memory or processing in the long term
-  def proxy(delegate: ActorRef): Actor.Receive = {
+  private def proxy(delegate: ActorRef): Actor.Receive = {
     case req =>
       Logger.debug("proxy: fw " + req + " from sender=" + sender)
       delegate forward req
   }
 
-  def replace(newReceive: Receive) {
+  private def replace(newReceive: Receive) {
     context.become(newReceive, discardOld = true)
   }
 
-  override def unhandled(message: Any) {
-    Logger.warn("Could not handle " + message)
-    super.unhandled(message)
-  }
-
-  def send(answer: Answer.Value) {
-    sender ! answer
-  }
-
-  def sendOK() {
+  private def sendOK() {
     send(Answer.Success)
+  }
+
+  private def send(answer: Answer.Value) {
+    sender ! answer
   }
 }

@@ -7,11 +7,10 @@ import akka.actor.{Actor, ActorRef, Props}
 import akka.event.Logging
 import business.dto.{Answer, Operation, UserCoin}
 import models.CandyMachineRequest
-import org.joda.time.{DateTime, Period}
+import org.joda.time.DateTime
 import play.api.Logger
 
 import scala.collection.immutable.Queue
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.FiniteDuration
 
 class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
@@ -51,7 +50,7 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
   private def expiryTime = new DateTime().plus(maxInactiveDuration)
 
   private def scheduleExpiryCheck() {
-//    import context.dispatcher
+    import context.dispatcher
     context.system.scheduler.scheduleOnce(maxInactiveFiniteDuration) {
       self ! CandyMachineRequest(UUID.randomUUID().toString, Operation.ExpireCoin)
     }

@@ -7,14 +7,16 @@ import akka.actor.{Actor, ActorRef, Props}
 import akka.event.Logging
 import business.dto.{Answer, Operation, UserCoin}
 import models.CandyMachineRequest
-import org.joda.time.DateTime
+import org.joda.time.{DateTime, Period}
 import play.api.Logger
 
 import scala.collection.immutable.Queue
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.FiniteDuration
 
-class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
+class CandyMachineActor(initialAvailableCandies: Int,
+                        maxInactiveDuration: Period = Conf.maxInactiveDuration,
+                        maxInactiveFiniteDuration: FiniteDuration = FiniteDuration(maxInactiveDuration.getMillis, TimeUnit.MILLISECONDS)
+                         ) extends Actor {
   val log = Logging(context.system, this)
 
   def receive = start(Math.max(0, initialAvailableCandies))
@@ -29,9 +31,9 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
       Logger.debug("equilibrium:" + availableCandies + " received " + req + " from " + sender)
       requestedOperation match {
         case Operation.Coin =>
-          val waitUntil: DateTime = new DateTime().plus(Conf.maxInactiveDuration)
+          val waitUntil: DateTime = new DateTime().plus(maxInactiveDuration)
           replace(withCoin(new UserCoin(currentUserId, waitUntil), availableCandies))
-          context.system.scheduler.scheduleOnce(FiniteDuration(Conf.maxInactiveDuration.getSeconds, TimeUnit.SECONDS)) {
+          context.system.scheduler.scheduleOnce(maxInactiveFiniteDuration) {
             self ! CandyMachineRequest(UUID.randomUUID().toString, Operation.ExpireCoin)
           }
           sendOK()

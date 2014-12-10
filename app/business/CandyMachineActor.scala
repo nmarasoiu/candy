@@ -62,6 +62,7 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
             replace(restart(availableCandies - 1))
             sendOK()
           case Operation.Coin =>
+            replace(withCoin(new UserLock(locker.userId, expiryTime), availableCandies))
             send(Answer.CannotInsertMoreThanOneCoin)
         }
       } else {
@@ -76,7 +77,7 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
         case Operation.ExpireCoin =>
           maybeExpireCoin(locker, availableCandies)
         case Operation.Refill =>
-          replace(withCoin(new UserLock(locker.userId, expiryTime), availableCandies + 1))
+          replace(withCoin(locker, availableCandies + 1))
           sendOK()
       }
   }
@@ -85,7 +86,7 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
     if (new DateTime().compareTo(locker.expiryTime) >= 0) {
       replace(restart(availableCandies))
     } else {
-      replace(withCoin(new UserLock(locker.userId, expiryTime), availableCandies))
+      replace(withCoin(locker, availableCandies))
     }
   }
 

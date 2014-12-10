@@ -68,23 +68,24 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
             send(Answer.CannotInsertMoreThanOneCoin)
         }
       } else {
-        def maybeExpireCoin(newQueue: Queue[(ActorRef, CandyMachineRequest)]) {
-          if (new DateTime().compareTo(locker.expiryTime) >= 0) {
-            replace(restart(availableCandies, newQueue))
-          } else {
-            replace(withCoin(locker, availableCandies, newQueue))
-          }
-        }
         requestedOperation match {
           case Operation.Candy | Operation.Coin =>
-            maybeExpireCoin(reqQueue.enqueue((sender(), req)))
+            maybeExpireCoin(locker, availableCandies, reqQueue.enqueue((sender(), req)))
           case Operation.ExpireCoin =>
-            maybeExpireCoin(reqQueue)
+            maybeExpireCoin(locker, availableCandies, reqQueue)
           case Operation.Refill =>
             replace(withCoin(locker, availableCandies + 1, reqQueue))
             sendOK()
         }
       }
+  }
+
+  private  def maybeExpireCoin(locker: UserCoin, availableCandies: Int, reqQueue: Queue[(ActorRef, CandyMachineRequest)]) {
+    if (new DateTime().compareTo(locker.expiryTime) >= 0) {
+      replace(restart(availableCandies, reqQueue))
+    } else {
+      replace(withCoin(locker, availableCandies, reqQueue))
+    }
   }
 
   private def restart(newAvailableCandies: Int, reqQueue: Queue[(ActorRef, CandyMachineRequest)]): Actor.Receive = {

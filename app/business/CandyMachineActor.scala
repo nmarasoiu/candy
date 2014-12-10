@@ -4,10 +4,9 @@ import java.util.concurrent.TimeUnit
 
 import akka.actor.{Actor, Stash}
 import akka.event.Logging
-import business.dto.{Answer, Operation, UserCoin}
+import business.dto.{Answer, Operation, UserLock}
 import models.CandyMachineRequest
 import org.joda.time.DateTime
-import play.api.Logger
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -17,23 +16,23 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
   private val maxInactiveFiniteDuration: FiniteDuration = FiniteDuration(maxInactiveDuration.getMillis, TimeUnit.MILLISECONDS)
 
   override def unhandled(message: Any) {
-    Logger.warn("Could not handle " + message)
+    log.warning("Could not handle " + message)
     super.unhandled(message)
   }
 
   def receive = start(Math.max(0, initialAvailableCandies))
 
   private def start(availableCandies: Int): Actor.Receive = {
-    Logger.debug("start:" + availableCandies)
+    log.debug("start:" + availableCandies)
     if (availableCandies == 0) noCandies() else equilibrium(availableCandies)
   }
 
   private def equilibrium(availableCandies: Int): Actor.Receive = {
     case req@CandyMachineRequest(currentUserId, requestedOperation) =>
-      Logger.debug("equilibrium:" + availableCandies + " received " + req + " from " + sender)
+      log.debug("equilibrium:" + availableCandies + " received " + req + " from " + sender)
       requestedOperation match {
         case Operation.Coin =>
-          replace(withCoin(new UserCoin(currentUserId.get, expiryTime), availableCandies))
+          replace(withCoin(new UserLock(currentUserId.get, expiryTime), availableCandies))
           scheduleExpiryCheck()
           sendOK()
         case Operation.Refill =>
@@ -54,9 +53,9 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
     }
   }
 
-  private def withCoin(locker: UserCoin, availableCandies: Int): Actor.Receive = {
+  private def withCoin(locker: UserLock, availableCandies: Int): Actor.Receive = {
     case req@CandyMachineRequest(Some(currentUserId), requestedOperation) =>
-      Logger.debug("withCoin:" + locker + "," + availableCandies)
+      log.debug("withCoin:" + locker + "," + availableCandies)
       if (currentUserId == locker.userId) {
         requestedOperation match {
           case Operation.Candy =>
@@ -82,7 +81,7 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
       }
   }
 
-  private def maybeExpireCoin(locker: UserCoin, availableCandies: Int) {
+  private def maybeExpireCoin(locker: UserLock, availableCandies: Int) {
     if (new DateTime().compareTo(locker.expiryTime) >= 0) {
       replace(restart(availableCandies))
     } else {
@@ -91,7 +90,7 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
   }
 
   private def restart(newAvailableCandies: Int): Actor.Receive = {
-    Logger.debug("restart:" + newAvailableCandies)
+    log.debug("restart:" + newAvailableCandies)
     unstashAll()
     start(newAvailableCandies)
   }

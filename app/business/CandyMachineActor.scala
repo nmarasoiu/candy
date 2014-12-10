@@ -3,7 +3,7 @@ package business
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{Stash, Actor, ActorRef}
 import akka.event.Logging
 import business.dto.{Answer, Operation, UserCoin}
 import models.CandyMachineRequest
@@ -13,7 +13,7 @@ import play.api.Logger
 import scala.collection.immutable.Queue
 import scala.concurrent.duration.FiniteDuration
 
-class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
+class CandyMachineActor(initialAvailableCandies: Int) extends Actor with Stash {
   private val log = Logging(context.system, this)
   private val maxInactiveDuration = Conf.maxInactiveDuration
   private val maxInactiveFiniteDuration: FiniteDuration = FiniteDuration(maxInactiveDuration.getMillis, TimeUnit.MILLISECONDS)
@@ -56,13 +56,13 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
     }
   }
 
-  private def withCoin(locker: UserCoin, availableCandies: Int, reqQueue: Queue[(ActorRef, CandyMachineRequest)] = Queue()): Actor.Receive = {
+  private def withCoin(locker: UserCoin, availableCandies: Int): Actor.Receive = {
     case req@CandyMachineRequest(currentUserId, requestedOperation) =>
-      Logger.debug("withCoin:" + locker + "," + availableCandies + "," + reqQueue)
+      Logger.debug("withCoin:" + locker + "," + availableCandies)
       if (currentUserId == locker.userId) {
         requestedOperation match {
           case Operation.Candy =>
-            replace(restart(availableCandies - 1, reqQueue))
+            replace(restart(availableCandies - 1))
             sendOK()
           case Operation.Coin =>
             send(Answer.CannotInsertMoreThanOneCoin)
@@ -70,36 +70,29 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
       } else {
         requestedOperation match {
           case Operation.Candy | Operation.Coin =>
-            maybeExpireCoin(locker, availableCandies, reqQueue.enqueue((sender(), req)))
+            maybeExpireCoin(locker, availableCandies)
+            stash()
           case Operation.ExpireCoin =>
-            maybeExpireCoin(locker, availableCandies, reqQueue)
+            maybeExpireCoin(locker, availableCandies)
           case Operation.Refill =>
-            replace(withCoin(locker, availableCandies + 1, reqQueue))
+            replace(withCoin(locker, availableCandies + 1))
             sendOK()
         }
       }
   }
 
-  private  def maybeExpireCoin(locker: UserCoin, availableCandies: Int, reqQueue: Queue[(ActorRef, CandyMachineRequest)]) {
+  private def maybeExpireCoin(locker: UserCoin, availableCandies: Int) {
     if (new DateTime().compareTo(locker.expiryTime) >= 0) {
-      replace(restart(availableCandies, reqQueue))
+      replace(restart(availableCandies))
     } else {
-      replace(withCoin(locker, availableCandies, reqQueue))
+      replace(withCoin(locker, availableCandies))
     }
   }
 
-  private def restart(newAvailableCandies: Int, reqQueue: Queue[(ActorRef, CandyMachineRequest)]): Actor.Receive = {
-    Logger.debug("restart:" + newAvailableCandies + "," + reqQueue)
-    if (reqQueue.isEmpty) {
-      start(newAvailableCandies)
-    } else {
-      val newActor = context.actorOf(Props(classOf[CandyMachineActor], newAvailableCandies))
-      for ((enqSender, enqReq) <- reqQueue) {
-        Logger.debug("Enq " + enqReq + " to " + newActor + " from sender=" + enqSender)
-        newActor tell(enqReq, enqSender)
-      }
-      proxy(newActor)
-    }
+  private def restart(newAvailableCandies: Int): Actor.Receive = {
+    Logger.debug("restart:" + newAvailableCandies )
+    unstashAll()
+    start(newAvailableCandies)
   }
 
   private def noCandies(): Actor.Receive = {
@@ -108,14 +101,6 @@ class CandyMachineActor(initialAvailableCandies: Int) extends Actor {
     case CandyMachineRequest(_, Operation.Coin | Operation.Candy) =>
       send(Answer.NoMoreCandies)
     case CandyMachineRequest(_, Operation.ExpireCoin) =>
-  }
-
-  //in the current solution we chain proxies whenever there are waiting reqs to ensure that they are going first and then the inbox tail
-  //clearly needs rewrite, to have just one proxy step, not a proxy chain which is does not have a bound in memory or processing in the long term
-  private def proxy(delegate: ActorRef): Actor.Receive = {
-    case req =>
-      Logger.debug("proxy: fw " + req + " from sender=" + sender)
-      delegate forward req
   }
 
   private def replace(newReceive: Receive) {

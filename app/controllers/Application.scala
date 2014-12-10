@@ -18,7 +18,9 @@ import play.api.mvc._
 import scala.concurrent.Future
 
 object Application extends Controller {
+
   val candyMachine = Akka.system.actorOf(Props(classOf[CandyMachineActor], Conf.initialCandies), name = "candyMachine")
+
   val userIdForm: Form[CandyMachineRequestDuplicate] = Form {
     mapping(
       "userId" -> nonEmptyText,
